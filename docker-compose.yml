@@ -73,17 +73,17 @@ services:
         - frontend
         - backend
 
-### Certbot #########################################
-    certbot:
-      build:
-        context: ./certbot
-      volumes:
-        - ./data/certbot/certs/:/var/certs
-        - ./certbot/letsencrypt/:/var/www/letsencrypt
-      environment:
-        - CN="*.rapidboda.com"
-        - EMAIL="ossentoogo@techstream.systems"
-      networks:
-        - frontend        
+# ### Certbot #########################################
+#     certbot:
+#       build:
+#         context: ./certbot
+#       volumes:
+#         - ./data/certbot/certs/:/var/certs
+#         - ./certbot/letsencrypt/:/var/www/letsencrypt
+#       environment:
+#         - CN="*.rapidboda.com"
+#         - EMAIL="ossentoogo@techstream.systems"
+#       networks:
+#         - frontend        
 
 
