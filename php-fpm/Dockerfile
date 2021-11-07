@@ -253,15 +253,16 @@ RUN if [ ${INSTALL_FAKETIME} = true ]; then \
 
 # Install Composer
 RUN curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
-COPY ./app/ /var/www/html
+COPY ./app/ /var/www/
 
-RUN composer update
 
 # Configure locale.
 ARG LOCALE=POSIX
 ENV LC_ALL ${LOCALE}
 
 WORKDIR /var/www
+RUN composer update
+
 CMD ["php-fpm"]
 
 EXPOSE 9000
