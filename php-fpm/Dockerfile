@@ -151,6 +151,15 @@ RUN sed -i "s/xdebug.cli_color=0/xdebug.cli_color=1/" /usr/local/etc/php/conf.d/
 
 ARG INSTALL_MSSQL=false
 
+RUN apt update \
+    && apt -y install git \
+    && apt -y --no-install-recommends install apt-utils libxml2-dev gnupg apt-transport-https \
+    && apt clean; rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* /usr/share/doc/*
+
+RUN apt -yq install curl gnupg ca-certificates \
+    && curl -L https://deb.nodesource.com/setup_14.x | bash \
+    && apt install -yq nodejs
+
 RUN set -eux; \
   if [ ${INSTALL_MSSQL} = true ]; then \
     if [ $(php -r "echo PHP_MAJOR_VERSION;") = "5" ]; then \
@@ -166,8 +175,11 @@ RUN set -eux; \
       # Add Microsoft repo for Microsoft ODBC Driver 13 for Linux
       apt-get install -yqq apt-transport-https gnupg lsb-release \
       && curl https://packages.microsoft.com/keys/microsoft.asc | apt-key add - \
-      && curl https://packages.microsoft.com/config/debian/$(lsb_release -rs)/prod.list > /etc/apt/sources.list.d/mssql-release.list \
-      && apt-get update -yqq \
+      && curl https://packages.microsoft.com/config/debian/9/prod.list > /etc/apt/sources.list.d/mssql-release.list \
+      && apt update && apt install wget -y \
+      && wget http://archive.ubuntu.com/ubuntu/pool/main/g/glibc/multiarch-support_2.27-3ubuntu1.4_amd64.deb \
+      && apt install ./multiarch-support_2.27-3ubuntu1.4_amd64.deb \
+      && apt update && ACCEPT_EULA=Y  apt -y --no-install-recommends install msodbcsql17 unixodbc-dev \
       && ACCEPT_EULA=Y apt-get install -yqq unixodbc unixodbc-dev libgss3 odbcinst msodbcsql17 locales \
       && echo "en_US.UTF-8 UTF-8" > /etc/locale.gen \
       && ln -sfn /etc/locale.alias /usr/share/locale/locale.alias \
@@ -186,6 +198,8 @@ RUN set -eux; \
       && php -m | grep -oiE '^sqlsrv$' \
     ;fi \
   ;fi
+
+
 
 ###########################################################################
 # ping:
@@ -237,12 +251,17 @@ RUN if [ ${INSTALL_FAKETIME} = true ]; then \
     echo "/usr/lib/x86_64-linux-gnu/faketime/libfaketime.so.1" > /etc/ld.so.preload \
 ;fi
 
+# Install Composer
+RUN curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
+COPY ./app/ /var/www/html
+
+RUN composer update
+
 # Configure locale.
 ARG LOCALE=POSIX
 ENV LC_ALL ${LOCALE}
 
 WORKDIR /var/www
-
 CMD ["php-fpm"]
 
 EXPOSE 9000
