@@ -73,16 +73,6 @@ RUN set -xe; \
 #   - INSTALL_SOAP=true
 #
 
-###########################################################################
-# BZ2:
-###########################################################################
-
-ARG INSTALL_BZ2=false
-RUN if [ ${INSTALL_BZ2} = true ]; then \
-  apt-get -yqq install libbz2-dev; \
-  docker-php-ext-install bz2 \
-;fi
-
 
 ###########################################################################
 # SSH2:
@@ -102,48 +92,6 @@ RUN if [ ${INSTALL_SSH2} = true ]; then \
 ;fi
 
 
-###########################################################################
-# xDebug:
-###########################################################################
-
-ARG INSTALL_XDEBUG=false
-
-RUN if [ ${INSTALL_XDEBUG} = true ]; then \
-  # Install the xdebug extension
-  # https://xdebug.org/docs/compat
-  if [ $(php -r "echo PHP_MAJOR_VERSION;") = "8" ] || { [ $(php -r "echo PHP_MAJOR_VERSION;") = "7" ] && { [ $(php -r "echo PHP_MINOR_VERSION;") = "4" ] || [ $(php -r "echo PHP_MINOR_VERSION;") = "3" ] ;} ;}; then \
-    pecl install xdebug-3.1.1; \
-  else \
-    if [ $(php -r "echo PHP_MAJOR_VERSION;") = "5" ]; then \
-      pecl install xdebug-2.5.5; \
-    else \
-      if [ $(php -r "echo PHP_MINOR_VERSION;") = "0" ]; then \
-        pecl install xdebug-2.9.0; \
-      else \
-        pecl install xdebug-2.9.8; \
-      fi \
-    fi \
-  fi && \
-  docker-php-ext-enable xdebug \
-;fi
-
-# Copy xdebug configuration for remote debugging
-COPY ./xdebug.ini /usr/local/etc/php/conf.d/xdebug.ini
-
-RUN if [ $(php -r "echo PHP_MAJOR_VERSION;") = "8" ]; then \
-  sed -i "s/xdebug.remote_host=/xdebug.client_host=/" /usr/local/etc/php/conf.d/xdebug.ini && \
-  sed -i "s/xdebug.remote_connect_back=0/xdebug.discover_client_host=false/" /usr/local/etc/php/conf.d/xdebug.ini && \
-  sed -i "s/xdebug.remote_port=9000/xdebug.client_port=9003/" /usr/local/etc/php/conf.d/xdebug.ini && \
-  sed -i "s/xdebug.profiler_enable=0/; xdebug.profiler_enable=0/" /usr/local/etc/php/conf.d/xdebug.ini && \
-  sed -i "s/xdebug.profiler_output_dir=/xdebug.output_dir=/" /usr/local/etc/php/conf.d/xdebug.ini && \
-  sed -i "s/xdebug.remote_mode=req/; xdebug.remote_mode=req/" /usr/local/etc/php/conf.d/xdebug.ini && \
-  sed -i "s/xdebug.remote_autostart=0/xdebug.start_with_request=yes/" /usr/local/etc/php/conf.d/xdebug.ini && \
-  sed -i "s/xdebug.remote_enable=0/xdebug.mode=debug/" /usr/local/etc/php/conf.d/xdebug.ini \
-;else \
-  sed -i "s/xdebug.remote_autostart=0/xdebug.remote_autostart=1/" /usr/local/etc/php/conf.d/xdebug.ini && \
-  sed -i "s/xdebug.remote_enable=0/xdebug.remote_enable=1/" /usr/local/etc/php/conf.d/xdebug.ini \
-;fi
-RUN sed -i "s/xdebug.cli_color=0/xdebug.cli_color=1/" /usr/local/etc/php/conf.d/xdebug.ini
 
 ###########################################################################
 # SQL SERVER:
@@ -251,17 +199,30 @@ RUN if [ ${INSTALL_FAKETIME} = true ]; then \
     echo "/usr/lib/x86_64-linux-gnu/faketime/libfaketime.so.1" > /etc/ld.so.preload \
 ;fi
 
-# Install Composer
+# # Install Composer
 RUN curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
+
+RUN rm -rf /var/www/*
+COPY ./app/composer.json /var/www/composer.json
+COPY ./app/package.json /var/www/package.json 
+
+RUN cd /var/www/ \
+  && composer install --prefer-dist --no-scripts --no-dev --no-autoloader && rm -rf /root/.composer
+
+# Copy codebase
 COPY ./app/ /var/www/
+
+# Finish composer
+RUN cd /var/www/ \
+  && composer dump-autoload --no-scripts --no-dev --optimize \
+  && composer update
 
 # Configure locale.
 ARG LOCALE=POSIX
 ENV LC_ALL ${LOCALE}
 
 WORKDIR /var/www
-RUN composer update
-USER root
+# USER root
 
 RUN chown -R www-data:www-data . 
 RUN chmod -R 777 .
